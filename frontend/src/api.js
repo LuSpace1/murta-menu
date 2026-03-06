@@ -7,17 +7,17 @@ const api = axios.create({
 
 export const getMenu = async (category, search) => {
   const params = {};
-  
+
 
   if (category && category !== 'Todos') {
     params.category = category;
   }
-  
+
 
   if (search) {
     params.search = search;
   }
-  
+
   const response = await api.get('/products', { params });
   return response.data;
 };
@@ -44,6 +44,14 @@ export const saveItem = async (item) => {
 
 export const deleteItem = async (id) => {
   await api.delete(`/products/${id}`);
+};
+
+
+export const renameCategory = async (oldName, newName) => {
+  const response = await api.put('/categories/rename', null, {
+    params: { old_name: oldName, new_name: newName }
+  });
+  return response.data;
 };
 
 

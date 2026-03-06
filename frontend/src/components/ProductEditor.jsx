@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { X, Save, ChevronDown, RotateCcw } from "lucide-react";
 
-export default function ProductEditor({ product, onSave, onClose, onChange }) {
+export default function ProductEditor({ product, onSave, onClose, onChange, categories = [] }) {
   const isEditing = product.id !== undefined;
   const title = isEditing ? "Editar Producto" : "Nuevo Producto";
 
   // Estado para controlar si mostramos el input manual
   const [isAddingNew, setIsAddingNew] = useState(false);
 
-  const CATEGORIES = [
-    "Special",
-    "(Not) Coffee",
-    "Coffee",
-    "Chocolate",
-    "Dulce",
-    "Salado",
-    "Bowls",
-    "Brunch",
-    "Smash Cookie",
-  ];
+  // Removido CATEGORIES hardcodeado, ahora usamos el prop categories
+  // filtramos "Todos" para que no aparezca como opción de creación
+  const availableCategories = categories.filter(c => c !== "Todos");
 
   const handleFieldChange = (field, value) => {
     onChange({
@@ -82,7 +74,7 @@ export default function ProductEditor({ product, onSave, onClose, onChange }) {
                   <option value="" disabled>
                     Selecciona una categoría
                   </option>
-                  {CATEGORIES.map((cat) => (
+                  {availableCategories.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
                     </option>

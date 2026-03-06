@@ -140,6 +140,34 @@ def delete_product(
     return {"message": "Producto eliminado exitosamente"}
 
 
+@app.put("/categories/rename")
+def rename_category(
+    old_name: str, 
+    new_name: str, 
+    db: Session = Depends(get_db)
+):
+    """Rename a category across all products"""
+    if not old_name or not new_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe proporcionar old_name y new_name"
+        )
+        
+    # Bulk update all products in the old category
+    updated_count = db.query(models.Product).filter(
+        models.Product.category == old_name
+    ).update({"category": new_name})
+    
+    if updated_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontraron productos con la categoría '{old_name}'"
+        )
+        
+    db.commit()
+    return {"message": f"Categoría '{old_name}' renombrada a '{new_name}' en {updated_count} productos"}
+
+
 @app.post("/login")
 def login(data: dict):
     """Simple login endpoint (demo only - not for production)"""

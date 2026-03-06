@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, Loader2, List } from "lucide-react";
+import { Plus, Loader2, List, Edit3 } from "lucide-react";
 import Swal from "sweetalert2";
 import * as API from "./api";
 
@@ -189,6 +189,57 @@ export default function App() {
     }
   };
 
+  const handleRenameCategory = async (oldCategoryName) => {
+    const { value: newCategoryName } = await Swal.fire({
+      title: 'Renombrar Categoría',
+      input: 'text',
+      inputLabel: `Nuevo nombre para "${oldCategoryName}"`,
+      inputValue: oldCategoryName,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar cambios',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6B2D3E',
+      cancelButtonColor: '#B8907A',
+      inputValidator: (value) => {
+        if (!value || value.trim() === '') {
+          return 'Debes ingresar un nombre válido'
+        }
+        if (value.trim() === oldCategoryName) {
+          return 'El nombre debe ser diferente al actual'
+        }
+      }
+    });
+
+    if (newCategoryName) {
+      try {
+        await API.renameCategory(oldCategoryName, newCategoryName.trim());
+
+        // Optimistic UI update or re-fetch depending on activeCategory
+        if (activeCategory === oldCategoryName) {
+          setActiveCategory(newCategoryName.trim());
+        }
+
+        fetchItems();
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Categoría renombrada',
+          toast: true,
+          position: 'top',
+          showConfirmButton: false,
+          timer: 1500
+        });
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error al renombrar',
+          text: error.message || 'No se pudo cambiar el nombre de la categoría',
+          confirmButtonColor: '#3A3530'
+        });
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FAF5EF] to-[#F0E6D8]">
       <Header
@@ -213,14 +264,13 @@ export default function App() {
                 className={`
                   relative
                   px-5 py-2.5 rounded-full text-xs font-display font-bold whitespace-nowrap transition-all border
-                  ${
-                    isActive
-                      ? isSpecialBtn
-                        ? "bg-[#8B4A5C] text-white border-[#8B4A5C] shadow-lg scale-105"
-                        : "bg-[#6B2D3E] text-white border-[#6B2D3E] shadow-lg"
-                      : isSpecialBtn
-                        ? "bg-[#F2E0E5] text-[#8B4A5C] border-[#E0C5CE] hover:bg-[#EBD3DA]"
-                        : "bg-white text-[#6B2D3E] border-[#E8D9CB] hover:bg-[#FAF5EF]"
+                  ${isActive
+                    ? isSpecialBtn
+                      ? "bg-[#8B4A5C] text-white border-[#8B4A5C] shadow-lg scale-105"
+                      : "bg-[#6B2D3E] text-white border-[#6B2D3E] shadow-lg"
+                    : isSpecialBtn
+                      ? "bg-[#F2E0E5] text-[#8B4A5C] border-[#E0C5CE] hover:bg-[#EBD3DA]"
+                      : "bg-white text-[#6B2D3E] border-[#E8D9CB] hover:bg-[#FAF5EF]"
                   }
                 `}
                 style={isActive && isSpecialBtn ? { clipPath: 'inset(0 round 9999px)' } : {}}
@@ -249,7 +299,21 @@ export default function App() {
                     </svg>
                   </div>
                 )}
-                <span className="relative z-10">{cat}</span>
+                <div className="relative z-10 flex items-center gap-2">
+                  <span>{cat}</span>
+                  {isAdmin && cat !== "Todos" && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation(); // Evita que el botón cambie la categoría activa al editar
+                        handleRenameCategory(cat);
+                      }}
+                      className="p-1 hover:bg-black/10 rounded-full transition-colors cursor-pointer"
+                      title={`Renombrar categoría ${cat}`}
+                    >
+                      <Edit3 size={14} className={isActive ? (isSpecialBtn ? 'text-white' : 'text-white/80') : (isSpecialBtn ? 'text-[#8B4A5C]' : 'text-[#6B2D3E]')} />
+                    </div>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -304,6 +368,7 @@ export default function App() {
       {editingItem && (
         <ProductEditor
           product={editingItem}
+          categories={categories}
           onSave={handleSave}
           onClose={() => setEditingItem(null)}
           onChange={setEditingItem}
