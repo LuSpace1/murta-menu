@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Plus, Loader2, List, Edit3 } from "lucide-react";
+import { Plus, Loader2, List, Edit3, Settings } from "lucide-react";
 import Swal from "sweetalert2";
 import * as API from "./api";
 
@@ -240,6 +240,80 @@ export default function App() {
     }
   };
 
+  const handleConfigureEmail = async () => {
+    // Obtener correo actual antes de abrir el modal
+    const status = await API.checkHasEmail();
+    const currentEmail = status.hasEmail ? status.email : "No configurado";
+
+    const { value: email, isConfirmed } = await Swal.fire({
+      title: 'Correo de Recuperación',
+      html: `
+        <div id="email-display-container" class="flex items-center justify-between bg-[#FAF5EF] p-4 rounded-xl mb-4 text-left">
+           <div>
+             <span class="block text-xs text-[#B8907A] font-bold uppercase tracking-wider">Correo Actual</span>
+             <span id="current-email-text" class="text-[#6B2D3E] font-black" style="word-break: break-all;">${currentEmail}</span>
+           </div>
+           <button type="button" id="edit-email-btn" class="p-2 bg-white rounded-lg shadow text-[#B8907A] hover:text-[#6B2D3E] transition-colors" title="Editar Correo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+           </button>
+        </div>
+        <div id="email-input-container" style="display: none;">
+          <input id="swal-input-email" class="swal2-input !mx-0 !w-full !mt-0 font-bold text-center" placeholder="Nuevo correo electrónico" type="email">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6B2D3E',
+      didOpen: () => {
+        const editBtn = document.getElementById('edit-email-btn');
+        const displayContainer = document.getElementById('email-display-container');
+        const inputContainer = document.getElementById('email-input-container');
+        const emailInput = document.getElementById('swal-input-email');
+
+        editBtn.addEventListener('click', () => {
+          displayContainer.style.display = 'none';
+          inputContainer.style.display = 'block';
+          emailInput.value = currentEmail !== "No configurado" ? currentEmail : '';
+          emailInput.focus();
+        });
+
+        if (currentEmail === "No configurado") {
+          displayContainer.style.display = 'none';
+          inputContainer.style.display = 'block';
+        }
+      },
+      preConfirm: () => {
+        const inputContainer = document.getElementById('email-input-container');
+        const emailInput = document.getElementById('swal-input-email');
+        if (inputContainer.style.display !== 'none') {
+          const val = emailInput.value.trim();
+          if (!val || !val.includes('@')) {
+            Swal.showValidationMessage('Ingresa un correo electrónico válido');
+            return false;
+          }
+          return val;
+        }
+        return null; // Retorna null si no editó
+      }
+    });
+
+    if (isConfirmed && email) {
+      try {
+        await API.updateRecoveryEmail(email);
+        Swal.fire({
+          icon: 'success',
+          title: 'Correo Configurado',
+          text: `Se usarán \n${email}\n para recuperar tu acceso.`,
+          confirmButtonColor: '#3A3530'
+        });
+      } catch (error) {
+        Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+      }
+    }
+  };
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FAF5EF] to-[#F0E6D8]">
       <Header
@@ -320,13 +394,22 @@ export default function App() {
         </div>
 
         {isAdmin && (
-          <button
-            onClick={() => openEditor({})}
-            className="w-full mb-6 bg-gradient-to-r from-[#6B2D3E] to-[#522231] text-white p-4 rounded-2xl font-black shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
-          >
-            <Plus size={20} />
-            NUEVO PRODUCTO
-          </button>
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => openEditor({})}
+              className="flex-1 bg-gradient-to-r from-[#6B2D3E] to-[#522231] text-white p-4 rounded-2xl font-black shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+            >
+              <Plus size={20} />
+              NUEVO PRODUCTO
+            </button>
+            <button
+              onClick={handleConfigureEmail}
+              title="Configurar Correo de Recuperación"
+              className="bg-[#E8D9CB] text-[#6B2D3E] p-4 rounded-2xl font-black shadow hover:bg-[#D9C4B1] transition-all flex items-center justify-center"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
         )}
 
         {loading ? (

@@ -1,5 +1,6 @@
 from database import SessionLocal
 import models
+from security import get_password_hash
 
 #DATOS EXACTOS DE LA CARTA MURTA MENU
 MENU_ITEMS = [
@@ -249,6 +250,14 @@ def seed_db():
         producto = models.Product(**item)
         db.add(producto)
         count += 1
+        
+    # Crear configuración inicial si no existe
+    config = db.query(models.AppConfig).first()
+    if not config:
+        print("Creando configuración inicial de la aplicación...")
+        hashed_pw = get_password_hash("ola2024")
+        new_config = models.AppConfig(admin_password=hashed_pw, recovery_email=None)
+        db.add(new_config)
 
     db.commit()
     print(f"Se cargaron {count} productos oficiales en la base de datos.")

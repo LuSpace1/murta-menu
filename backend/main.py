@@ -169,12 +169,107 @@ def rename_category(
 
 
 @app.post("/login")
-def login(data: dict):
-    """Simple login endpoint (demo only - not for production)"""
-    if data.get("password") == "ola2024":
+def login(
+    data: schemas.LoginRequest, 
+    db: Session = Depends(get_db)
+):
+    """Secure login endpoint using hashed passwords"""
+    config = db.query(models.AppConfig).first()
+    if not config:
+        raise HTTPException(status_code=500, detail="Configuración no encontrada")
+
+    from security import verify_password
+    if verify_password(data.password, config.admin_password):
         return {"status": "ok", "token": "access-granted"}
     
     raise HTTPException(
         status_code=401, 
         detail="Contraseña incorrecta"
     )
+
+# --- SISTEMA DE RECUPERACIÓN ---
+import random
+import time
+from email_service import send_recovery_email
+
+active_pins = {} # { "correo": {"pin": "123456", "expires_at": timestamp} }
+PIN_EXPIRATION_SECONDS = 900 # 15 min
+
+@app.post("/request-recovery")
+def request_recovery(db: Session = Depends(get_db)):
+    """Genera y envía un PIN al correo de recuperación si existe"""
+    config = db.query(models.AppConfig).first()
+    if not config or not config.recovery_email:
+        # Por seguridad no indicamos si existe o no, solo damos un 200 genérico.
+        # Pero si queremos UX podemos devolver error. Optamos por devolver 400 por UX en este contexto.
+        raise HTTPException(status_code=400, detail="No hay un correo de recuperación configurado.")
+
+    email = config.recovery_email.strip().lower()
+    pin = str(random.randint(100000, 999999))
+    
+    active_pins[email] = {
+        "pin": pin,
+        "expires_at": time.time() + PIN_EXPIRATION_SECONDS
+    }
+    
+    # Enviar correo
+    success = send_recovery_email(email, pin)
+    if not success:
+         raise HTTPException(status_code=500, detail="Error al enviar el correo.")
+         
+    return {"message": "Si el correo está registrado, se enviará un PIN válido por 15 minutos."}
+
+@app.post("/verify-pin")
+def verify_pin_and_change_password(
+    data: schemas.PinVerification,
+    db: Session = Depends(get_db)
+):
+    """Verifica PIN y cambia contraseña"""
+    config = db.query(models.AppConfig).first()
+    if not config or not config.recovery_email:
+        raise HTTPException(status_code=400, detail="Configuración inválida")
+        
+    email = config.recovery_email.strip().lower()
+    record = active_pins.get(email)
+    
+    if not record:
+        raise HTTPException(status_code=400, detail="No hay un PIN activo o ha expirado")
+        
+    if time.time() > record["expires_at"]:
+        del active_pins[email]
+        raise HTTPException(status_code=400, detail="El PIN ha expirado")
+        
+    if record["pin"] != data.pin:
+        raise HTTPException(status_code=401, detail="PIN incorrecto")
+        
+    # Validado. Cambiar clave.
+    from security import get_password_hash
+    config.admin_password = get_password_hash(data.new_password)
+    db.commit()
+    
+    # Invalida PIN usado
+    del active_pins[email]
+    
+    return {"message": "Contraseña actualizada exitosamente"}
+
+@app.put("/config/email")
+def update_recovery_email(
+    data: schemas.EmailUpdate,
+    db: Session = Depends(get_db)
+):
+    """Actualiza el correo de recuperación (requiere estar logueado, simplificado sin JWT real para este caso)"""
+    config = db.query(models.AppConfig).first()
+    if not config:
+         raise HTTPException(status_code=500, detail="Configuración no encontrada")
+         
+    config.recovery_email = data.new_email.strip().lower()
+    db.commit()
+    return {"message": "Correo de recuperación actualizado"}
+    
+@app.get("/config/has-email")
+def check_has_email(db: Session = Depends(get_db)):
+    """Retorna si el admin tiene un correo configurado (útil para la UI)"""
+    config = db.query(models.AppConfig).first()
+    if not config:
+        return {"hasEmail": False, "email": None}
+    return {"hasEmail": bool(config.recovery_email), "email": config.recovery_email}
