@@ -10,3 +10,6 @@ dependencies = []
 members = [
     "backend",
 ]
+
+[tool.uv]
+package = false
